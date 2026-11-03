@@ -296,11 +296,14 @@ if [[ "$with_board" -eq 1 ]]; then
 	echo -1 > /sys/module/usbcore/parameters/autosuspend
 else
 	# flash.sh takes RAMCODE as a decimal number made from the RAMCODE_ID bits.
+	# RAMCODE_ID must not reach flash.sh: it wins over RAMCODE and is passed on as is,
+	# and tegraflash then fails on int('00:00:00:01').
 	RAMCODE="$(echo "ibase=2; ${RAMCODE_ID//:/}" | bc)"
 	echo "Generating without the board: BOARDID=${BOARDID} FAB=${FAB} BOARDSKU=${BOARDSKU}" \
 		"BOARDREV=${BOARDREV} CHIP_SKU=${CHIP_SKU} FUSELEVEL=${FUSELEVEL}" \
 		"RAMCODE_ID=${RAMCODE_ID} RAMCODE=${RAMCODE}"
-	export BOARDID FAB BOARDSKU BOARDREV CHIP_SKU FUSELEVEL RAMCODE_ID RAMCODE
+	unset RAMCODE_ID
+	export BOARDID FAB BOARDSKU BOARDREV CHIP_SKU FUSELEVEL RAMCODE
 fi
 
 ./tools/kernel_flash/l4t_initrd_flash.sh \
