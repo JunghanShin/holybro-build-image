@@ -196,13 +196,14 @@ install_jetpack_runtime() {
 
 	# Pin every JetPack package, and keep all other L4T packages at the BSP version.
 	# The pins stay in the image so a later apt upgrade does not move the board off this version.
+	# apt ignores files in preferences.d unless they have no extension or end in .pref.
 	{
 		echo "# JetPack ${JETPACK_VERSION} on L4T ${l4t_pinned}, written by holybro-build-image.sh."
 		echo "# Delete this file to allow upgrades to a newer JetPack."
 		echo
 		grep -vE '^(#|$)' "$PIN_LIST" | awk -F= '{print "Package: "$1"\nPin: version "$2"\nPin-Priority: 1001\n"}'
 		printf 'Package: nvidia-l4t-*\nPin: version %s\nPin-Priority: 1001\n' "$l4t_pinned"
-	} > "${ROOTFS}/etc/apt/preferences.d/jetpack-6.2.2"
+	} > "${ROOTFS}/etc/apt/preferences.d/jetpack-6.2.2.pref"
 
 	in_rootfs apt-get update
 	in_rootfs apt-get install -y "nvidia-jetpack-runtime=${JETPACK_VERSION}"

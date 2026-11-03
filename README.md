@@ -174,7 +174,7 @@ sudo ./flash.sh --no-flash --no-systemimg jetson-orin-nano-devkit-super nvme0n1p
    - `jetpack-6.2.2.list`의 버전으로 모든 JetPack 패키지를 고정합니다. NVIDIA 저장소에는 JetPack 6.2.3도 있어서 고정하지 않으면 다른 버전이 설치됩니다.
    - L4T 패키지(`nvidia-l4t-*`)는 BSP 버전(36.5.0)으로 고정합니다. 커널과 부트로더는 BSP에서 오므로 L4T 패키지만 올리면 서로 어긋납니다.
    - 이미지의 L4T 버전이 목록과 다르면 멈춥니다.
-   - 고정 설정은 보드의 `/etc/apt/preferences.d/jetpack-6.2.2`에 남습니다. 보드에서 `apt upgrade`를 해도 이 버전에 머뭅니다. 새 JetPack으로 올리려면 이 파일을 지웁니다.
+   - 고정 설정은 보드의 `/etc/apt/preferences.d/jetpack-6.2.2.pref`에 남습니다. 보드에서 `apt upgrade`를 해도 이 버전에 머뭅니다. 새 JetPack으로 올리려면 이 파일을 지웁니다.
 6. 언어(`en_US.UTF-8`), 키보드(US), 시간대를 설정합니다.
 7. NVIDIA의 `l4t_create_default_user.sh`로 기본 사용자를 만들고 자동 로그인을 켭니다. 첫 부팅 초기 설정 화면이 나오지 않습니다. 같은 이름의 사용자가 이미 있으면 건너뜁니다.
 8. `l4t_initrd_flash.sh --no-flash`로 NVMe 설치용 이미지를 만듭니다.
