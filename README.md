@@ -52,29 +52,9 @@ git clone https://github.com/JunghanShin/holybro-flash-image.git
 
 ## 사용법
 
-### 1. 처음 한 번: 보드를 연결하고 생성 (`--with-board`)
+### 1. 이미지 생성 (보드 없이)
 
-보드 없이 생성하려면 보드 식별값이 필요합니다. `BOARDID`, `FAB`, `BOARDSKU`, `BOARDREV`, `CHIP_SKU`, `FUSELEVEL`은 운용 중인 보드에서 읽어 스크립트에 넣어 두었습니다. `RAMCODE_ID`만은 메모리 스트랩 핀 값이라 부팅된 보드에서 보이지 않으므로, **처음 한 번만** 보드를 REC 모드로 연결해서 생성합니다.
-
-1. 보드 전원을 끄고 캐리어 보드의 REC 스위치를 켭니다.
-2. PC와 보드의 USB-C를 연결하고 전원을 켭니다.
-3. 복구 장치가 480Mbps로 잡혔는지 확인합니다. NVIDIA 장치(`0955:7323` 등)가 `480M`으로 보여야 합니다.
-   ```bash
-   lsusb -t
-   ```
-4. 생성합니다.
-   ```bash
-   ./holybro-build-image/holybro-build-image.sh -w ~/holybro-work --with-board
-   ```
-5. 끝에 보드에서 읽은 식별값이 출력됩니다(`chkbdinfo`로 `cvm.bin`, `chip_info.bin_bak`을 읽은 값). `RAMCODE_ID`를 스크립트 위쪽에 적습니다. 다른 값이 스크립트 기본값과 다르면 그것도 고칩니다.
-   ```bash
-   RAMCODE_ID="${RAMCODE_ID:-여기에 값}"
-   ```
-   값을 적으면 다음부터는 보드 없이 생성됩니다. 같은 모델의 보드라면 팀원이 이 값을 그대로 씁니다.
-
-이 실행으로 이미지도 만들어지므로, 바로 [쓰기](#3-보드에-쓰기)로 넘어가도 됩니다.
-
-### 2. 평소: 보드 없이 생성
+보드 식별값은 모두 스크립트에 들어 있으므로 보드를 연결하지 않고 생성합니다.
 
 ```bash
 ./holybro-build-image/holybro-build-image.sh -w ~/holybro-work
@@ -85,20 +65,42 @@ git clone https://github.com/JunghanShin/holybro-flash-image.git
   ```bash
   ./holybro-build-image/holybro-build-image.sh -w ~/holybro-work --force
   ```
-- 식별값을 스크립트에 적지 않고 환경 변수로 넘겨도 됩니다.
-  ```bash
-  RAMCODE_ID=값 ./holybro-build-image/holybro-build-image.sh -w ~/holybro-work
-  ```
 
 전체 출력은 작업 폴더의 `build-image.log`에 저장됩니다.
 
-### 3. 보드에 쓰기
+### 2. 보드에 쓰기
 
 [holybro-flash-image](https://github.com/JunghanShin/holybro-flash-image)에서 같은 작업 폴더를 지정합니다.
 
 ```bash
 ./holybro-flash-image/holybro-flash-image.sh -w ~/holybro-work
 ```
+
+### 다른 모듈을 쓸 때: 보드 식별값 다시 확인 (`--with-board`)
+
+스크립트의 식별값은 우리 Orin NX 16GB 보드 값입니다. 다른 모듈(예: Orin NX 8GB)을 쓰면 그 보드에서 한 번 읽어야 합니다. 보드에는 아무것도 쓰지 않습니다.
+
+1. 보드 전원을 끄고 캐리어 보드의 REC 스위치를 켭니다.
+2. PC와 보드의 USB-C를 연결하고 전원을 켭니다.
+3. 복구 장치가 480Mbps로 잡혔는지 확인합니다. NVIDIA 장치(`0955:7323` 등)가 `480M`으로 보여야 합니다.
+   ```bash
+   lsusb -t
+   ```
+4. 보드를 읽으며 생성합니다.
+   ```bash
+   ./holybro-build-image/holybro-build-image.sh -w ~/holybro-work --with-board --force
+   ```
+5. 끝에 보드에서 읽은 식별값(`BOARDID` ~ `RAMCODE_ID`)이 출력됩니다. 스크립트 기본값과 다른 값을 스크립트 위쪽에 고쳐 적습니다. 스크립트를 고치지 않고 환경 변수로 넘겨도 됩니다.
+   ```bash
+   BOARDSKU=0001 CHIP_SKU=00:00:00:D4 ./holybro-build-image/holybro-build-image.sh -w ~/holybro-work
+   ```
+
+이미지 생성 없이 값만 빨리 보려면, 준비된 `Linux_for_Tegra`에서 아래를 실행합니다(몇 분). 출력의 `Ram code`, `Chip sku`, `Board ID(...) version(...) sku(...) revision(...)`이 식별값입니다. 마지막에 SD 카드 관련 `Error`가 나와도 값은 이미 다 읽은 뒤라 무시해도 됩니다.
+```bash
+sudo ./flash.sh --no-flash --no-systemimg jetson-orin-nano-devkit-super nvme0n1p1
+```
+
+끝나면 전원을 끄고 REC 스위치를 원래대로 돌린 뒤 켜면 SSD의 기존 시스템으로 부팅됩니다.
 
 ## 옵션
 
@@ -117,7 +119,7 @@ git clone https://github.com/JunghanShin/holybro-flash-image.git
 | `BOARDREV` | `F.1` | 보드 리비전 |
 | `CHIP_SKU` | `00:00:00:D3` | 칩 SKU (Orin NX 16GB) |
 | `FUSELEVEL` | `fuselevel_production` | 퓨즈 레벨 |
-| `RAMCODE_ID` | 비어 있음 | `--with-board` 실행으로 확인 |
+| `RAMCODE_ID` | `00:00:00:01` | DRAM 종류 (RAMCODE 1) |
 
 기본값은 운용 중인 Orin NX 16GB 보드에서 읽었습니다.
 
@@ -125,6 +127,7 @@ git clone https://github.com/JunghanShin/holybro-flash-image.git
 |---|---|
 | `BOARDID`, `FAB`, `BOARDSKU`, `BOARDREV`, `FUSELEVEL` | `/etc/nv_boot_control.conf`의 `TNSPEC 3767-303-0000-F.1-1-1` |
 | `CHIP_SKU` | 커널 로그 `Tegra Revision: A01 SKU: 211` (211 = `0xD3`) |
+| `RAMCODE_ID` | REC 모드에서 `flash.sh --no-flash` 실행 출력 `Ram code: 0x1` |
 
 다른 모듈(예: Orin NX 8GB)을 쓰면 `--with-board`로 다시 확인해야 합니다.
 
@@ -144,7 +147,7 @@ git clone https://github.com/JunghanShin/holybro-flash-image.git
 
 | 증상 | 원인과 조치 |
 |---|---|
-| `CHIP_SKU or RAMCODE_ID is not set` | `RAMCODE_ID`가 비어 있습니다. [처음 한 번](#1-처음-한-번-보드를-연결하고-생성---with-board) 절차를 따릅니다. |
+| `CHIP_SKU or RAMCODE_ID is not set` | 식별값을 비워서 실행했습니다. [다른 모듈을 쓸 때](#다른-모듈을-쓸-때-보드-식별값-다시-확인---with-board) 절차로 값을 확인합니다. |
 | `--with-board needs the board in REC at 480 Mbps` | 보드가 REC 모드가 아니거나 USB 3.x 포트에서 다른 속도로 잡혔습니다. 다른 USB 포트나 USB 2.0 허브를 써 봅니다. |
 | Holybro 패치 다운로드 실패 | 패치 주소가 Holybro 문서(GitBook)의 임시 링크라 바뀔 수 있습니다. Holybro 문서에서 JetPack 6.2.2 패치를 받아 작업 폴더에 `holybro_jp622.tbz2`로 두면 다운로드를 건너뜁니다. |
 | `Image generation finished but ... system.img is missing` | `build-image.log`에서 오류를 확인합니다. |
@@ -152,4 +155,4 @@ git clone https://github.com/JunghanShin/holybro-flash-image.git
 ## 상태
 
 - 실제 Linux PC에서 이 버전(작업 폴더 옵션, 보드 없이 생성)을 아직 실행해 보지 않았습니다.
-- `RAMCODE_ID`는 아직 비어 있습니다. 보드를 REC 모드로 연결해 `--with-board`로 한 번 실행해야 합니다.
+- 보드 식별값은 모두 확인했습니다(REC 모드에서 읽은 값과 일치).

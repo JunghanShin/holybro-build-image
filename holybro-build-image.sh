@@ -31,15 +31,16 @@ PATCH_TBZ="holybro_jp622.tbz2"
 #   BOARDID, FAB, BOARDSKU, BOARDREV  /etc/nv_boot_control.conf TNSPEC 3767-303-0000-F.1-1-1
 #   CHIP_SKU                          kernel log "Tegra Revision: A01 SKU: 211" (211 = 0xD3)
 #   FUSELEVEL                         TNSPEC fuse level 1 = production
-# RAMCODE_ID comes from strap pins and is not visible on the running board: run once with
-# --with-board, then copy the value printed at the end of that run.
+#   RAMCODE_ID                        flash.sh --no-flash in REC: "Ram code: 0x1"
+# RAMCODE_ID comes from strap pins and is not visible on the running board. For another
+# module, run once with --with-board and copy the values printed at the end of that run.
 BOARDID="${BOARDID:-3767}"
 FAB="${FAB:-303}"
 BOARDSKU="${BOARDSKU:-0000}"
 BOARDREV="${BOARDREV:-F.1}"
 CHIP_SKU="${CHIP_SKU:-00:00:00:D3}"
 FUSELEVEL="${FUSELEVEL:-fuselevel_production}"
-RAMCODE_ID="${RAMCODE_ID:-}"
+RAMCODE_ID="${RAMCODE_ID:-00:00:00:01}"
 
 WORK_DIR="${WORK_DIR:-$(pwd)}"
 force=0
