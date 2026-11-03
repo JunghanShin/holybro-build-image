@@ -1,6 +1,8 @@
 #!/bin/bash
 # Build a Holybro Pixhawk Jetson baseboard image for Jetson Orin NX.
-# JetPack 6.2.2 (L4T r36.5) uses the target name jetson-orin-nano-devkit-super.
+# JetPack 6.2.2 (L4T 36.5.0) uses the target name jetson-orin-nano-devkit-super.
+# The image also gets the JetPack 6.2.2 runtime (versions from jetpack-6.2.2.list),
+# a default user, English locale and keyboard, so the board is usable right after flashing.
 #
 # This script only generates images. It never writes the board, and by default it
 # does not need the board connected: the board identity is passed as environment
@@ -18,6 +20,7 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 TARGET="jetson-orin-nano-devkit-super"
 BSP_URL="https://developer.nvidia.com/downloads/embedded/l4t/r36_release_v5.0/release/Jetson_Linux_r36.5.0_aarch64.tbz2"
 ROOTFS_URL="https://developer.nvidia.com/downloads/embedded/l4t/r36_release_v5.0/release/Tegra_Linux_Sample-Root-Filesystem_r36.5.0_aarch64.tbz2"
@@ -25,6 +28,17 @@ PATCH_URL="https://2367252986-files.gitbook.io/~/files/v0/b/gitbook-x-prod.appsp
 BSP_TBZ="Jetson_Linux_r36.5.0_aarch64.tbz2"
 ROOTFS_TBZ="Tegra_Linux_Sample-Root-Filesystem_r36.5.0_aarch64.tbz2"
 PATCH_TBZ="holybro_jp622.tbz2"
+
+# JetPack runtime. The NVIDIA r36.5 repository also has 6.2.3 (L4T 36.5.2), so every
+# version is pinned. The list is the same file jetson-dev-env builds its sysroot from.
+JETPACK_VERSION="6.2.2+b24"
+PIN_LIST="${SCRIPT_DIR}/jetpack-6.2.2.list"
+
+# Default user and system settings written into the image.
+JETSON_USER="${JETSON_USER:-dev}"
+JETSON_PASSWORD="${JETSON_PASSWORD:-roqkf}"
+JETSON_HOSTNAME="${JETSON_HOSTNAME:-jetson}"
+JETSON_TIMEZONE="${JETSON_TIMEZONE:-Asia/Seoul}"
 
 # Board identity for generating without the board. Override with environment variables.
 # Read from the running Orin NX 16GB board:
@@ -51,7 +65,7 @@ while [[ $# -gt 0 ]]; do
 		-w) WORK_DIR="${2:?-w needs a directory}"; shift ;;
 		--force) force=1 ;;
 		--with-board) with_board=1 ;;
-		-h|--help) sed -n '2,17p' "$0"; exit 0 ;;
+		-h|--help) sed -n '2,19p' "$0"; exit 0 ;;
 		*) echo "unknown option: $1" >&2; exit 2 ;;
 	esac
 	shift
@@ -77,9 +91,16 @@ if [[ "$with_board" -eq 0 && ( -z "$CHIP_SKU" || -z "$RAMCODE_ID" ) ]]; then
 	exit 1
 fi
 
+if [[ ! -f "$PIN_LIST" ]]; then
+	echo "Missing ${PIN_LIST}. Keep it next to this script." >&2
+	exit 1
+fi
+
 if [[ "$(id -u)" -ne 0 ]]; then
 	exec sudo WORK_DIR="$WORK_DIR" BOARDID="$BOARDID" FAB="$FAB" BOARDSKU="$BOARDSKU" \
 		BOARDREV="$BOARDREV" CHIP_SKU="$CHIP_SKU" FUSELEVEL="$FUSELEVEL" RAMCODE_ID="$RAMCODE_ID" \
+		JETSON_USER="$JETSON_USER" JETSON_PASSWORD="$JETSON_PASSWORD" \
+		JETSON_HOSTNAME="$JETSON_HOSTNAME" JETSON_TIMEZONE="$JETSON_TIMEZONE" \
 		bash "$0" "${args[@]}"
 fi
 
@@ -88,7 +109,8 @@ echo "Work directory: ${WORK_DIR}"
 
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
-apt-get install -y wget tar bzip2 lbzip2 libxml2 python3 bc ca-certificates python-is-python3
+apt-get install -y wget tar bzip2 lbzip2 libxml2 python3 bc ca-certificates python-is-python3 \
+	qemu-user-static binfmt-support
 
 cd "$WORK_DIR"
 
@@ -101,6 +123,121 @@ download() {
 	fi
 	echo "Downloading $out"
 	wget -c --show-progress -O "$out" "$url"
+}
+
+# chroot into the aarch64 root filesystem through qemu-user-static.
+ROOTFS="${WORK_DIR}/Linux_for_Tegra/rootfs"
+added_qemu=0
+
+in_rootfs() {
+	chroot "$ROOTFS" /usr/bin/env DEBIAN_FRONTEND=noninteractive LC_ALL=C "$@"
+}
+
+enter_rootfs() {
+	mount -t proc proc "${ROOTFS}/proc"
+	mount -t sysfs sys "${ROOTFS}/sys"
+	mount --bind /dev "${ROOTFS}/dev"
+	mount --bind /dev/pts "${ROOTFS}/dev/pts"
+	# Name resolution for apt. The image keeps its own resolv.conf (a systemd-resolved link).
+	# A .holybro copy left by an interrupted run is the original, so keep it.
+	if [[ -e "${ROOTFS}/etc/resolv.conf.holybro" || -L "${ROOTFS}/etc/resolv.conf.holybro" ]]; then
+		rm -f "${ROOTFS}/etc/resolv.conf"
+	elif [[ -e "${ROOTFS}/etc/resolv.conf" || -L "${ROOTFS}/etc/resolv.conf" ]]; then
+		mv "${ROOTFS}/etc/resolv.conf" "${ROOTFS}/etc/resolv.conf.holybro"
+	fi
+	if [[ -f /run/systemd/resolve/resolv.conf ]]; then
+		cp /run/systemd/resolve/resolv.conf "${ROOTFS}/etc/resolv.conf"
+	else
+		cp -L /etc/resolv.conf "${ROOTFS}/etc/resolv.conf"
+	fi
+	# Keep package scripts from starting services inside the chroot.
+	printf '#!/bin/sh\nexit 101\n' > "${ROOTFS}/usr/sbin/policy-rc.d"
+	chmod +x "${ROOTFS}/usr/sbin/policy-rc.d"
+	if [[ ! -e "${ROOTFS}/usr/bin/qemu-aarch64-static" ]]; then
+		cp /usr/bin/qemu-aarch64-static "${ROOTFS}/usr/bin/"
+		added_qemu=1
+	fi
+}
+
+leave_rootfs() {
+	local m
+	for m in dev/pts dev sys proc; do
+		if mountpoint -q "${ROOTFS}/${m}"; then
+			umount -l "${ROOTFS}/${m}"
+		fi
+	done
+	rm -f "${ROOTFS}/usr/sbin/policy-rc.d"
+	if [[ -e "${ROOTFS}/etc/resolv.conf.holybro" || -L "${ROOTFS}/etc/resolv.conf.holybro" ]]; then
+		rm -f "${ROOTFS}/etc/resolv.conf"
+		mv "${ROOTFS}/etc/resolv.conf.holybro" "${ROOTFS}/etc/resolv.conf"
+	fi
+	if [[ "$added_qemu" -eq 1 ]]; then
+		rm -f "${ROOTFS}/usr/bin/qemu-aarch64-static"
+		added_qemu=0
+	fi
+}
+
+install_jetpack_runtime() {
+	local l4t_installed l4t_pinned
+	l4t_installed="$(in_rootfs dpkg-query -W -f '${Version}' nvidia-l4t-core)"
+	l4t_pinned="$(sed -n 's/^nvidia-l4t-core=//p' "$PIN_LIST")"
+	if [[ "$l4t_installed" != "$l4t_pinned" ]]; then
+		echo "L4T in the image is ${l4t_installed} but ${PIN_LIST} expects ${l4t_pinned}." >&2
+		echo "The BSP and the JetPack version list do not match." >&2
+		return 1
+	fi
+
+	local source_list="${ROOTFS}/etc/apt/sources.list.d/nvidia-l4t-apt-source.list"
+	if [[ ! -f "$source_list" ]]; then
+		echo "Missing ${source_list}; apply_binaries.sh did not install the NVIDIA apt source." >&2
+		return 1
+	fi
+	sed -i 's/<SOC>/t234/g' "$source_list"
+
+	# Pin every JetPack package, and keep all other L4T packages at the BSP version.
+	# The pins stay in the image so a later apt upgrade does not move the board off this version.
+	{
+		echo "# JetPack ${JETPACK_VERSION} on L4T ${l4t_pinned}, written by holybro-build-image.sh."
+		echo "# Delete this file to allow upgrades to a newer JetPack."
+		echo
+		grep -vE '^(#|$)' "$PIN_LIST" | awk -F= '{print "Package: "$1"\nPin: version "$2"\nPin-Priority: 1001\n"}'
+		printf 'Package: nvidia-l4t-*\nPin: version %s\nPin-Priority: 1001\n' "$l4t_pinned"
+	} > "${ROOTFS}/etc/apt/preferences.d/jetpack-6.2.2"
+
+	in_rootfs apt-get update
+	in_rootfs apt-get install -y "nvidia-jetpack-runtime=${JETPACK_VERSION}"
+	in_rootfs apt-get clean
+	rm -rf "${ROOTFS}/var/lib/apt/lists/"*
+	echo "Installed nvidia-jetpack-runtime $(in_rootfs dpkg-query -W -f '${Version}' nvidia-jetpack-runtime)"
+}
+
+configure_system() {
+	in_rootfs locale-gen en_US.UTF-8
+	echo "LANG=en_US.UTF-8" > "${ROOTFS}/etc/default/locale"
+	cat > "${ROOTFS}/etc/default/keyboard" <<-'EOF'
+		XKBMODEL="pc105"
+		XKBLAYOUT="us"
+		XKBVARIANT=""
+		XKBOPTIONS=""
+		BACKSPACE="guess"
+	EOF
+	if [[ ! -f "${ROOTFS}/usr/share/zoneinfo/${JETSON_TIMEZONE}" ]]; then
+		echo "Unknown time zone: ${JETSON_TIMEZONE}" >&2
+		return 1
+	fi
+	ln -sf "/usr/share/zoneinfo/${JETSON_TIMEZONE}" "${ROOTFS}/etc/localtime"
+	echo "$JETSON_TIMEZONE" > "${ROOTFS}/etc/timezone"
+	echo "Locale en_US.UTF-8, keyboard us, time zone ${JETSON_TIMEZONE}"
+}
+
+create_default_user() {
+	if grep -q "^${JETSON_USER}:" "${ROOTFS}/etc/passwd"; then
+		echo "User ${JETSON_USER} already exists in the image; keeping it."
+		return 0
+	fi
+	./tools/l4t_create_default_user.sh -u "$JETSON_USER" -p "$JETSON_PASSWORD" \
+		-n "$JETSON_HOSTNAME" -a --accept-license
+	echo "User ${JETSON_USER}, host name ${JETSON_HOSTNAME}, automatic login"
 }
 
 download "$BSP_URL" "$BSP_TBZ"
@@ -121,6 +258,14 @@ cd Linux_for_Tegra
 ./tools/l4t_flash_prerequisites.sh
 ./apply_binaries.sh
 tar xf "${WORK_DIR}/${PATCH_TBZ}"
+
+trap leave_rootfs EXIT
+enter_rootfs
+install_jetpack_runtime
+configure_system
+leave_rootfs
+trap - EXIT
+create_default_user
 
 if [[ "$force" -eq 1 ]]; then
 	rm -rf "$IMAGE_DIR"
