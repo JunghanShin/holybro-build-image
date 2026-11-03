@@ -27,14 +27,18 @@ ROOTFS_TBZ="Tegra_Linux_Sample-Root-Filesystem_r36.5.0_aarch64.tbz2"
 PATCH_TBZ="holybro_jp622.tbz2"
 
 # Board identity for generating without the board. Override with environment variables.
-# BOARDID, FAB, BOARDSKU, BOARDREV were read from the running board (/etc/nv_boot_control.conf:
-# TNSPEC 3767-303-0000-F.1). CHIP_SKU and RAMCODE_ID are not readable there: run once with
-# --with-board, then copy the values printed at the end of that run.
+# Read from the running Orin NX 16GB board:
+#   BOARDID, FAB, BOARDSKU, BOARDREV  /etc/nv_boot_control.conf TNSPEC 3767-303-0000-F.1-1-1
+#   CHIP_SKU                          kernel log "Tegra Revision: A01 SKU: 211" (211 = 0xD3)
+#   FUSELEVEL                         TNSPEC fuse level 1 = production
+# RAMCODE_ID comes from strap pins and is not visible on the running board: run once with
+# --with-board, then copy the value printed at the end of that run.
 BOARDID="${BOARDID:-3767}"
 FAB="${FAB:-303}"
 BOARDSKU="${BOARDSKU:-0000}"
 BOARDREV="${BOARDREV:-F.1}"
-CHIP_SKU="${CHIP_SKU:-}"
+CHIP_SKU="${CHIP_SKU:-00:00:00:D3}"
+FUSELEVEL="${FUSELEVEL:-fuselevel_production}"
 RAMCODE_ID="${RAMCODE_ID:-}"
 
 WORK_DIR="${WORK_DIR:-$(pwd)}"
@@ -66,7 +70,7 @@ if [[ -f "$IMAGE" && "$force" -eq 0 ]]; then
 fi
 
 if [[ "$with_board" -eq 0 && ( -z "$CHIP_SKU" || -z "$RAMCODE_ID" ) ]]; then
-	echo "CHIP_SKU and RAMCODE_ID are not set, so images cannot be generated without the board." >&2
+	echo "CHIP_SKU or RAMCODE_ID is not set, so images cannot be generated without the board." >&2
 	echo "Run once with the board in REC at 480 Mbps:  $0 -w ${WORK_DIR} --with-board" >&2
 	echo "then set the printed values at the top of this script (or as environment variables)." >&2
 	exit 1
@@ -74,7 +78,7 @@ fi
 
 if [[ "$(id -u)" -ne 0 ]]; then
 	exec sudo WORK_DIR="$WORK_DIR" BOARDID="$BOARDID" FAB="$FAB" BOARDSKU="$BOARDSKU" \
-		BOARDREV="$BOARDREV" CHIP_SKU="$CHIP_SKU" RAMCODE_ID="$RAMCODE_ID" \
+		BOARDREV="$BOARDREV" CHIP_SKU="$CHIP_SKU" FUSELEVEL="$FUSELEVEL" RAMCODE_ID="$RAMCODE_ID" \
 		bash "$0" "${args[@]}"
 fi
 
@@ -83,7 +87,7 @@ echo "Work directory: ${WORK_DIR}"
 
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
-apt-get install -y wget tar bzip2 lbzip2 libxml2 python3 ca-certificates python-is-python3
+apt-get install -y wget tar bzip2 lbzip2 libxml2 python3 bc ca-certificates python-is-python3
 
 cd "$WORK_DIR"
 
@@ -144,9 +148,12 @@ if [[ "$with_board" -eq 1 ]]; then
 	echo 2048 > /sys/module/usbcore/parameters/usbfs_memory_mb
 	echo -1 > /sys/module/usbcore/parameters/autosuspend
 else
+	# flash.sh takes RAMCODE as a decimal number made from the RAMCODE_ID bits.
+	RAMCODE="$(echo "ibase=2; ${RAMCODE_ID//:/}" | bc)"
 	echo "Generating without the board: BOARDID=${BOARDID} FAB=${FAB} BOARDSKU=${BOARDSKU}" \
-		"BOARDREV=${BOARDREV} CHIP_SKU=${CHIP_SKU} RAMCODE_ID=${RAMCODE_ID}"
-	export BOARDID FAB BOARDSKU BOARDREV CHIP_SKU RAMCODE_ID
+		"BOARDREV=${BOARDREV} CHIP_SKU=${CHIP_SKU} FUSELEVEL=${FUSELEVEL}" \
+		"RAMCODE_ID=${RAMCODE_ID} RAMCODE=${RAMCODE}"
+	export BOARDID FAB BOARDSKU BOARDREV CHIP_SKU FUSELEVEL RAMCODE_ID RAMCODE
 fi
 
 ./tools/kernel_flash/l4t_initrd_flash.sh \
@@ -166,8 +173,19 @@ fi
 
 if [[ "$with_board" -eq 1 ]]; then
 	echo
-	echo "Board identity reported during this run (set CHIP_SKU and RAMCODE_ID from these lines):"
-	grep -iE "board ?id|chip.?sku|ram.?code|fab|board.?sku|board.?rev" "$LOG" | grep -v "^Generating without" | sort -u | tail -20 || true
+	# The board read leaves cvm.bin (EEPROM) and chip_info.bin_bak (chip) in bootloader/.
+	echo "Board identity read during this run. Put RAMCODE_ID (and any value that differs) at the top of this script:"
+	cd bootloader
+	if [[ -f cvm.bin && -f chip_info.bin_bak ]]; then
+		echo "  BOARDID=$(./chkbdinfo -i cvm.bin)"
+		echo "  FAB=$(./chkbdinfo -f cvm.bin)"
+		echo "  BOARDSKU=$(./chkbdinfo -k cvm.bin)"
+		echo "  BOARDREV=$(./chkbdinfo -r cvm.bin)"
+		echo "  CHIP_SKU=$(./chkbdinfo -C chip_info.bin_bak)"
+		echo "  RAMCODE_ID=$(./chkbdinfo -R chip_info.bin_bak)"
+	else
+		echo "  cvm.bin or chip_info.bin_bak is missing in $(pwd). Check ${LOG}." >&2
+	fi
 fi
 
 echo
