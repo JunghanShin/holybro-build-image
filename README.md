@@ -256,6 +256,7 @@ sudo ./flash.sh --no-flash --no-systemimg jetson-orin-nano-devkit-super nvme0n1p
 
 ## 상태
 
-- Ubuntu 22.04 PC에서 보드 없이 생성(런타임·사용자 포함)과 플래시까지 확인했습니다. 다시 실행할 때 첫 부팅 설정 화면이 켜지던 문제는 고쳤고, 고친 버전으로 다시 확인하는 중입니다.
+- Ubuntu 22.04 PC에서 확인했습니다(2026-11-04): 보드 없이 생성 → 플래시 → 초기 설정 화면 없이 부팅·자동 로그인 → USB 원격(`192.168.55.1`) 접속 → JetPack 6.2.2 런타임(CUDA, TensorRT, cuDNN, VPI, OpenCV, GStreamer, NvBufSurface) 실행.
+- `--with-board` 생성은 끝까지 실행해 보지 않았습니다. 보드 식별값은 같은 방법(`flash.sh --no-flash`)으로 읽어 확인했습니다.
 - 가상 머신(VirtualBox, VMware)에서는 아직 시험하지 않았습니다.
 - 보드 식별값은 모두 확인했습니다(REC 모드에서 읽은 값과 일치).
