@@ -231,6 +231,104 @@ configure_system() {
 	echo "Locale en_US.UTF-8, keyboard us, time zone ${JETSON_TIMEZONE}"
 }
 
+# USB remote access over the carrier's USB-C (recovery) port. The port has no USB-C role
+# controller, so after boot its role stays "none" and the PC never sees the L4T USB device
+# (192.168.55.1). usb-role.service sets it to device mode at boot; usb-role turns it on or off.
+install_usb_role() {
+	cat > "${ROOTFS}/etc/default/usb-role" <<'EOF'
+# USB remote access over the USB-C port (usb-role). Change it with: sudo usb-role on|off
+ROLE=on
+ROLE_SWITCH=usb2-0-role-switch
+EOF
+	cat > "${ROOTFS}/usr/local/sbin/usb-role" <<'EOF'
+#!/bin/bash
+# USB remote access over the USB-C port. When on, the PC on that port reaches this board
+# at 192.168.55.1 (ssh). The setting is kept in /etc/default/usb-role across reboots.
+#   usb-role           show the current state
+#   sudo usb-role on   turn USB remote access on (port role device)
+#   sudo usb-role off  turn USB remote access off (port role none)
+#   usb-role --apply   apply the saved setting (usb-role.service at boot)
+set -euo pipefail
+
+CONF=/etc/default/usb-role
+ROLE=on
+ROLE_SWITCH=usb2-0-role-switch
+[[ -f "$CONF" ]] && . "$CONF"
+SYSFS="/sys/class/usb_role/${ROLE_SWITCH}/role"
+
+role_for() {
+	case "$1" in
+		on) echo device ;;
+		off) echo none ;;
+		*) return 1 ;;
+	esac
+}
+
+apply() {
+	local want i
+	want="$(role_for "$1")" || { echo "bad ROLE in $CONF: $1 (use on or off)" >&2; exit 1; }
+	# The role switch shows up shortly after the USB driver loads.
+	for i in $(seq 1 20); do
+		[[ -e "$SYSFS" ]] && break
+		sleep 0.5
+	done
+	[[ -e "$SYSFS" ]] || { echo "$SYSFS not found" >&2; exit 1; }
+	echo "$want" > "$SYSFS"
+}
+
+show() {
+	local cur
+	cur="$(cat "$SYSFS" 2>/dev/null || echo missing)"
+	if [[ "$cur" == device ]]; then
+		echo "USB remote access: on (ssh $(id -un)@192.168.55.1 from the PC on the USB-C port)"
+	else
+		echo "USB remote access: off (port role ${cur})"
+	fi
+	echo "saved setting: ${ROLE} (${CONF})"
+}
+
+case "${1:-}" in
+	"") show ;;
+	--apply) apply "$ROLE" ;;
+	on|off)
+		if [[ "$(id -u)" -ne 0 ]]; then
+			echo "Run as root: sudo usb-role $1" >&2
+			exit 1
+		fi
+		if [[ "$1" == off && "${SSH_CONNECTION:-}" == 192.168.55.* ]]; then
+			echo "This SSH session runs over USB and will drop. Reconnect over Ethernet."
+		fi
+		sed -i "s/^ROLE=.*/ROLE=$1/" "$CONF"
+		ROLE="$1"
+		apply "$ROLE"
+		show
+		;;
+	*)
+		echo "usage: usb-role [on|off]" >&2
+		exit 2
+		;;
+esac
+EOF
+	chmod 755 "${ROOTFS}/usr/local/sbin/usb-role"
+	cat > "${ROOTFS}/etc/systemd/system/usb-role.service" <<'EOF'
+[Unit]
+Description=USB-C port role for USB remote access (usb-role)
+Before=nv-l4t-usb-device-mode.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/usb-role --apply
+
+[Install]
+WantedBy=multi-user.target
+EOF
+	mkdir -p "${ROOTFS}/etc/systemd/system/multi-user.target.wants"
+	ln -sf /etc/systemd/system/usb-role.service \
+		"${ROOTFS}/etc/systemd/system/multi-user.target.wants/usb-role.service"
+	echo "USB remote access on by default (usb-role on|off)"
+}
+
 create_default_user() {
 	if grep -q "^${JETSON_USER}:" "${ROOTFS}/etc/passwd"; then
 		# apply_binaries.sh (nv_customize_rootfs.sh) links default.target to nv-oem-config.target
@@ -269,6 +367,7 @@ trap leave_rootfs EXIT
 enter_rootfs
 install_jetpack_runtime
 configure_system
+install_usb_role
 leave_rootfs
 trap - EXIT
 create_default_user

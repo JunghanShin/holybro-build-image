@@ -115,8 +115,9 @@ git clone https://github.com/JunghanShin/holybro-flash-image.git
 | 호스트 이름 | `jetson` |
 | 언어 / 키보드 | 영어 `en_US.UTF-8` / US |
 | 시간대 | `Asia/Seoul` |
+| USB 원격 | 켜짐 (`192.168.55.1`) |
 
-- **USB-C로 접속:** 보드와 PC를 USB-C로 연결하면 USB 네트워크가 잡히고, 보드 주소는 `192.168.55.1`입니다.
+- **USB-C로 접속:** 플래시할 때 쓴 USB-C 케이블을 그대로 두고 접속합니다. 부팅 후 1분쯤 지나면 PC에 USB 네트워크가 잡힙니다(PC 쪽 `192.168.55.100`).
   ```bash
   ssh dev@192.168.55.1
   ```
@@ -127,6 +128,30 @@ git clone https://github.com/JunghanShin/holybro-flash-image.git
   ```
 
 고정 IP, 프로젝트 프로그램과 서비스는 이미지에 들어 있지 않습니다. 각 프로젝트의 설치 절차를 따릅니다.
+
+### USB 원격 켜기·끄기 (`usb-role`)
+
+이 캐리어 보드의 USB-C 포트는 역할을 정하는 칩이 없어서, 부팅 후 그대로 두면 PC가 보드를 USB 장치로 인식하지 못합니다. 그래서 이미지에 부팅할 때 이 포트를 장치 모드로 바꾸는 서비스(`usb-role.service`)와 켜고 끄는 명령(`usb-role`)을 넣었습니다. 기본은 켜짐입니다.
+
+```bash
+usb-role
+```
+```bash
+sudo usb-role on
+```
+```bash
+sudo usb-role off
+```
+
+| 명령 | 내용 |
+|---|---|
+| `usb-role` | 지금 상태와 저장된 설정 보기 |
+| `sudo usb-role on` | USB 원격 켜기. 포트 역할 `device` |
+| `sudo usb-role off` | USB 원격 끄기. 포트 역할 `none`(초기 상태) |
+
+- 바꾸면 바로 적용되고, 다음 부팅에도 유지됩니다(`/etc/default/usb-role`).
+- USB로 접속한 상태에서 `off`를 하면 그 접속이 끊깁니다. 이더넷으로 다시 접속하거나, 모니터와 키보드로 `sudo usb-role on`을 실행합니다.
+- 이 포트는 PC 연결(플래시, USB 원격) 전용으로 씁니다. USB 장치는 USB-A 포트에 꽂습니다. `host`(장치를 꽂아 쓰는 모드)는 PC와 연결된 상태에서 전원이 충돌할 수 있어 넣지 않았습니다.
 
 ### 다른 모듈을 쓸 때: 보드 식별값 다시 확인 (`--with-board`)
 
@@ -202,11 +227,12 @@ sudo ./flash.sh --no-flash --no-systemimg jetson-orin-nano-devkit-super nvme0n1p
    - 이미지의 L4T 버전이 목록과 다르면 멈춥니다.
    - 고정 설정은 보드의 `/etc/apt/preferences.d/jetpack-6.2.2.pref`에 남습니다. 보드에서 `apt upgrade`를 해도 이 버전에 머뭅니다. 새 JetPack으로 올리려면 이 파일을 지웁니다.
 6. 언어(`en_US.UTF-8`), 키보드(US), 시간대를 설정합니다.
-7. NVIDIA의 `l4t_create_default_user.sh`로 기본 사용자를 만들고 자동 로그인을 켭니다. 첫 부팅 초기 설정 화면(oem-config)이 나오지 않습니다.
+7. USB 원격용 `usb-role` 명령과 부팅 서비스를 넣습니다(기본 켜짐).
+8. NVIDIA의 `l4t_create_default_user.sh`로 기본 사용자를 만들고 자동 로그인을 켭니다. 첫 부팅 초기 설정 화면(oem-config)이 나오지 않습니다.
    - 같은 이름의 사용자가 이미 있으면(다시 실행할 때) 사용자는 그대로 두고 초기 설정 화면만 다시 끕니다. `apply_binaries.sh`가 실행될 때마다 초기 설정 화면을 다시 켜기 때문입니다.
    - 이미지를 만들기 전에 초기 설정 화면이 꺼져 있는지 확인하고, 켜져 있으면 멈춥니다.
-8. `l4t_initrd_flash.sh --no-flash`로 NVMe 설치용 이미지를 만듭니다.
-9. `system.img`가 생겼는지 확인합니다.
+9. `l4t_initrd_flash.sh --no-flash`로 NVMe 설치용 이미지를 만듭니다.
+10. `system.img`가 생겼는지 확인합니다.
 
 ## 문제 해결
 
