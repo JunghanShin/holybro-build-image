@@ -28,12 +28,38 @@ holybro-flash-image.sh   (보드 REC 모드, USB 연결)
 
 | 항목 | 내용 |
 |---|---|
-| PC | x86_64 Ubuntu 22.04 (네이티브 설치 권장) |
+| Linux | **x86_64 Ubuntu 22.04** PC 또는 가상 머신 (VirtualBox, VMware). 그 밖의 버전(24.04 등)은 NVIDIA가 지원하지 않음 |
 | 권한 | `sudo` (스크립트가 필요할 때 스스로 `sudo`로 다시 실행) |
 | 디스크 | 작업 폴더에 여유 공간 약 50GB |
 | 인터넷 | NVIDIA BSP, 루트 파일 시스템, Holybro 패치(약 2.5GB)와 JetPack 런타임 패키지(수 GB) 다운로드 |
 
-WSL2와 가상 머신에서는 USB 복구 장치 연결이 불안정해 권장하지 않습니다. 생성 단계는 보드가 없어도 되므로 WSL2에서도 될 수 있지만 시험하지 않았습니다.
+**준비할 것은 Ubuntu 22.04 Linux 환경 하나뿐입니다.** 실제 PC든 가상 머신이든 상관없습니다. 이미지 생성에 필요한 도구는 스크립트가 모두 설치합니다. 플래시([holybro-flash-image](https://github.com/JunghanShin/holybro-flash-image))도 같은 Linux 환경에서 합니다.
+
+### 가상 머신 (VirtualBox, VMware)
+
+Windows PC에 VirtualBox나 VMware를 설치하고 Ubuntu 22.04 가상 머신을 만들어 씁니다. 가상 머신 디스크 파일은 외장 SSD 등 아무 곳에 두어도 됩니다.
+
+| 항목 | 권장 |
+|---|---|
+| 게스트 OS | Ubuntu 22.04 x86_64 (Desktop 또는 Server) |
+| CPU / 메모리 | 4코어 이상 / 8GB 이상. 런타임 설치를 ARM64 에뮬레이션으로 하므로 코어가 많을수록 빠름 |
+| 가상 디스크 | 100GB 이상 (OS 약 25GB + 작업 폴더 약 50GB) |
+| 네트워크 | NAT로 충분 (다운로드만 함) |
+| USB | 아래 설정 필요 (플래시할 때만) |
+
+**USB 설정 (플래시할 때 필수).** 플래시 중에 보드가 USB 장치로 **두 번** 나타납니다. 처음에는 복구 장치(`0955:7323` 등)로, 그다음 플래시용으로 부팅한 뒤 다른 장치로 다시 연결됩니다. 두 번째 장치가 Windows 쪽에 잡히면 플래시가 멈추므로, **NVIDIA 장치는 항상 가상 머신으로 자동 연결**되게 설정합니다.
+
+- **VirtualBox**
+  1. 호스트 버전과 같은 **Extension Pack**을 설치합니다. USB 2.0/3.0 컨트롤러에 필요합니다.
+  2. 가상 머신 설정 → USB → **USB 3.0 (xHCI) 컨트롤러**를 선택합니다.
+  3. USB 장치 필터를 추가하고 **Vendor ID `0955`**만 입력합니다. Product ID는 비워 두어야 모든 NVIDIA 장치가 잡힙니다.
+- **VMware Workstation / Player**
+  1. 가상 머신 설정 → USB Controller → USB compatibility를 **USB 3.1**(또는 2.0)로 설정하고, "Automatically connect new USB devices"를 켭니다.
+  2. 플래시 중 새 장치 연결 창이 뜨면 **가상 머신에 연결**을 고릅니다. "항상 이 동작" 선택이 있으면 켜 둡니다.
+
+설정 후 가상 머신 안에서 `lsusb`에 `0955:` 장치가 보이는지 확인하고 플래시합니다.
+
+WSL2는 USB 장치가 재연결될 때 자동으로 넘겨지지 않아 플래시에 쓰지 않습니다.
 
 ## 설치
 
@@ -204,5 +230,6 @@ sudo ./flash.sh --no-flash --no-systemimg jetson-orin-nano-devkit-super nvme0n1p
 
 ## 상태
 
-- 실제 Linux PC에서 이 버전(작업 폴더, 보드 없이 생성, 런타임·사용자 설치)을 아직 실행해 보지 않았습니다.
+- Ubuntu 22.04 PC에서 보드 없이 생성(런타임·사용자 포함)과 플래시까지 확인했습니다. 다시 실행할 때 첫 부팅 설정 화면이 켜지던 문제는 고쳤고, 고친 버전으로 다시 확인하는 중입니다.
+- 가상 머신(VirtualBox, VMware)에서는 아직 시험하지 않았습니다.
 - 보드 식별값은 모두 확인했습니다(REC 모드에서 읽은 값과 일치).
