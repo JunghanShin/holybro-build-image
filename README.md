@@ -176,7 +176,9 @@ sudo ./flash.sh --no-flash --no-systemimg jetson-orin-nano-devkit-super nvme0n1p
    - 이미지의 L4T 버전이 목록과 다르면 멈춥니다.
    - 고정 설정은 보드의 `/etc/apt/preferences.d/jetpack-6.2.2.pref`에 남습니다. 보드에서 `apt upgrade`를 해도 이 버전에 머뭅니다. 새 JetPack으로 올리려면 이 파일을 지웁니다.
 6. 언어(`en_US.UTF-8`), 키보드(US), 시간대를 설정합니다.
-7. NVIDIA의 `l4t_create_default_user.sh`로 기본 사용자를 만들고 자동 로그인을 켭니다. 첫 부팅 초기 설정 화면이 나오지 않습니다. 같은 이름의 사용자가 이미 있으면 건너뜁니다.
+7. NVIDIA의 `l4t_create_default_user.sh`로 기본 사용자를 만들고 자동 로그인을 켭니다. 첫 부팅 초기 설정 화면(oem-config)이 나오지 않습니다.
+   - 같은 이름의 사용자가 이미 있으면(다시 실행할 때) 사용자는 그대로 두고 초기 설정 화면만 다시 끕니다. `apply_binaries.sh`가 실행될 때마다 초기 설정 화면을 다시 켜기 때문입니다.
+   - 이미지를 만들기 전에 초기 설정 화면이 꺼져 있는지 확인하고, 켜져 있으면 멈춥니다.
 8. `l4t_initrd_flash.sh --no-flash`로 NVMe 설치용 이미지를 만듭니다.
 9. `system.img`가 생겼는지 확인합니다.
 
@@ -188,6 +190,7 @@ sudo ./flash.sh --no-flash --no-systemimg jetson-orin-nano-devkit-super nvme0n1p
 | `--with-board needs the board in REC at 480 Mbps` | 보드가 REC 모드가 아니거나 USB 3.x 포트에서 다른 속도로 잡혔습니다. 다른 USB 포트나 USB 2.0 허브를 써 봅니다. |
 | Holybro 패치 다운로드 실패 | 패치 주소가 Holybro 문서(GitBook)의 임시 링크라 바뀔 수 있습니다. Holybro 문서에서 JetPack 6.2.2 패치를 받아 작업 폴더에 `holybro_jp622.tbz2`로 두면 다운로드를 건너뜁니다. |
 | `Image generation finished but ... system.img is missing` | `build-image.log`에서 오류를 확인합니다. |
+| 플래시 후 `OEM installation` / System Configuration 화면이 나옴 | 이전 버전 스크립트로 두 번 이상 실행한 이미지입니다. 최신 스크립트로 `--force` 생성 후 다시 플래시합니다. 이미 플래시한 보드는 `Ctrl+Alt+F3`에서 로그인해 `sudo rm /etc/systemd/system/default.target && sudo reboot`로 끌 수 있습니다. |
 | `L4T in the image is ... but ... expects ...` | BSP와 `jetpack-6.2.2.list`의 L4T 버전이 다릅니다. BSP나 목록 중 하나를 바꿨다면 둘을 같은 JetPack 버전으로 맞춥니다. |
 | 런타임 설치 중 `exec format error` | ARM64 실행용 `qemu-user-static`/`binfmt` 등록이 안 됐습니다. `sudo systemctl restart systemd-binfmt` 후 다시 실행합니다. |
 

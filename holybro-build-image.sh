@@ -233,7 +233,12 @@ configure_system() {
 
 create_default_user() {
 	if grep -q "^${JETSON_USER}:" "${ROOTFS}/etc/passwd"; then
-		echo "User ${JETSON_USER} already exists in the image; keeping it."
+		# apply_binaries.sh (nv_customize_rootfs.sh) links default.target to nv-oem-config.target
+		# again on every run when it is missing, so a rerun brings back the first-boot setup.
+		# Redo the bypass that l4t_create_default_user.sh does.
+		rm -f "${ROOTFS}/etc/systemd/system/default.target"
+		touch "${ROOTFS}/etc/nv/nvautoconfig"
+		echo "User ${JETSON_USER} already exists in the image; keeping it and skipping first-boot setup."
 		return 0
 	fi
 	./tools/l4t_create_default_user.sh -u "$JETSON_USER" -p "$JETSON_PASSWORD" \
@@ -267,6 +272,10 @@ configure_system
 leave_rootfs
 trap - EXIT
 create_default_user
+if [[ -e "${ROOTFS}/etc/systemd/system/default.target" ]]; then
+	echo "First-boot setup (oem-config) is still enabled in the image: ${ROOTFS}/etc/systemd/system/default.target" >&2
+	exit 1
+fi
 
 if [[ "$force" -eq 1 ]]; then
 	rm -rf "$IMAGE_DIR"
