@@ -2,14 +2,14 @@
 
 Holybro Pixhawk Jetson Baseboard에 Jetson Orin NX를 설치할 **플래시 이미지를 만드는** 스크립트입니다. 보드에 쓰지는 않습니다. 쓰기는 [holybro-flash-image](https://github.com/JunghanShin/holybro-flash-image)가 합니다.
 
-이미지에는 **JetPack 6.2.2 런타임**(CUDA, TensorRT, cuDNN, VPI, OpenCV 등)과 **기본 사용자 계정**이 들어 있어, 플래시하고 전원만 켜면 바로 SSH로 접속해 쓸 수 있습니다. 런타임 버전은 크로스 컴파일 환경 [jetson-dev-env](https://github.com/JunghanShin/jetson-dev-env)와 같은 목록(`jetpack-6.2.2.list`)으로 고정되어, PC에서 빌드한 프로그램이 그대로 실행됩니다.
+이미지에는 **JetPack 6.2.2 런타임과 개발 패키지**(CUDA·nvcc, TensorRT, cuDNN, VPI, OpenCV 4.8 헤더 포함, gcc·cmake)와 **기본 사용자 계정**이 들어 있어, 플래시하고 전원만 켜면 바로 SSH로 접속해 쓸 수 있습니다. 패키지 구성과 버전은 크로스 컴파일 환경 [jetson-dev-env](https://github.com/JunghanShin/jetson-dev-env)와 같은 목록(`jetpack-6.2.2.list`)으로 고정되어, PC에서 빌드한 프로그램이 그대로 실행되고 보드에서 직접 빌드해도 같은 라이브러리를 씁니다.
 
 생성과 쓰기를 나눈 이유는 USB 연결 시간입니다. 한 번에 생성하고 쓰면 보드를 USB로 연결한 채 오래 기다려야 하고, 그동안 USB write 에러가 납니다. 이 스크립트는 **보드 없이** 이미지를 만들고, 보드는 마지막 쓰기 단계에서만 연결합니다.
 
 ```text
 holybro-build-image.sh   (보드 없이, 오래 걸림)
   다운로드 → 압축 해제 → NVIDIA 바이너리 적용 → Holybro 패치
-  → JetPack 런타임 설치 → 언어·시간대·키보드 → 기본 사용자 → 이미지 생성
+  → JetPack 런타임·개발 패키지 설치 → 언어·시간대·키보드 → 기본 사용자 → 이미지 생성
         │ 작업 폴더/Linux_for_Tegra/tools/kernel_flash/images/
         ▼
 holybro-flash-image.sh   (보드 REC 모드, USB 연결)
@@ -31,7 +31,7 @@ holybro-flash-image.sh   (보드 REC 모드, USB 연결)
 | Linux | **x86_64 Ubuntu 22.04** PC 또는 가상 머신 (VirtualBox, VMware). 그 밖의 버전(24.04 등)은 NVIDIA가 지원하지 않음 |
 | 권한 | `sudo` (스크립트가 필요할 때 스스로 `sudo`로 다시 실행) |
 | 디스크 | 작업 폴더에 여유 공간 약 50GB |
-| 인터넷 | NVIDIA BSP, 루트 파일 시스템, Holybro 패치(약 2.5GB)와 JetPack 런타임 패키지(수 GB) 다운로드 |
+| 인터넷 | NVIDIA BSP, 루트 파일 시스템, Holybro 패치(약 2.5GB)와 JetPack 런타임·개발 패키지(수 GB) 다운로드 |
 
 **준비할 것은 Ubuntu 22.04 Linux 환경 하나뿐입니다.** 실제 PC든 가상 머신이든 상관없습니다. 이미지 생성에 필요한 도구는 스크립트가 모두 설치합니다. 플래시([holybro-flash-image](https://github.com/JunghanShin/holybro-flash-image))도 같은 Linux 환경에서 합니다.
 
@@ -122,12 +122,37 @@ git clone https://github.com/JunghanShin/holybro-flash-image.git
   ssh dev@192.168.55.1
   ```
 - **이더넷:** 기본은 DHCP입니다. 공유기에서 받은 IP로 접속합니다.
-- 런타임이 들어갔는지 확인합니다. `6.2.2+b24`가 나와야 합니다.
+- 런타임과 개발 패키지가 들어갔는지 확인합니다. 둘 다 `6.2.2+b24`가 나와야 합니다.
   ```bash
-  dpkg-query -W nvidia-jetpack-runtime
+  dpkg-query -W nvidia-jetpack-runtime nvidia-jetpack-dev
+  ```
+  ```bash
+  nvcc --version
   ```
 
 고정 IP, 프로젝트 프로그램과 서비스는 이미지에 들어 있지 않습니다. 각 프로젝트의 설치 절차를 따릅니다.
+
+### 개발 패키지 (`jetson-install-dev.sh`)
+
+보드에서 작은 프로그램을 직접 빌드하거나 고칠 수 있도록 jetson-dev-env와 같은 개발 패키지를 넣습니다.
+
+| 들어가는 것 | 내용 |
+|---|---|
+| `nvidia-jetpack-dev=6.2.2+b24` | CUDA 컴파일러 `nvcc`와 헤더(12.6), OpenCV 4.8 헤더, TensorRT·cuDNN·VPI 헤더와 예제 |
+| `build-essential`, `cmake`, `pkg-config` | 보드에서 직접 빌드하는 도구 |
+| `/etc/profile.d/cuda.sh` | `nvcc`가 있는 `/usr/local/cuda/bin`을 PATH에 추가 |
+
+- 설치 용량은 약 5GB입니다.
+- NVIDIA 예제 루트 파일 시스템에 들어 있던 우분투 OpenCV 4.5.4 헤더 일부는 OpenCV 4.8 헤더로 바뀝니다(apt가 자동으로 정리). 그래서 보드에서 빌드해도 개발환경과 같은 OpenCV 4.8을 씁니다.
+
+**이 스크립트가 들어가기 전에 플래시한 보드:** 다시 플래시하지 않고 같은 스크립트를 보드에서 한 번 실행하면 같은 상태가 됩니다(인터넷 필요).
+```bash
+wget https://raw.githubusercontent.com/JunghanShin/holybro-build-image/main/jetson-install-dev.sh
+```
+```bash
+sudo bash jetson-install-dev.sh
+```
+끝나면 새 셸을 열어야 `nvcc`가 PATH에 잡힙니다.
 
 ### USB 원격 켜기·끄기 (`usb-role`)
 
@@ -226,13 +251,14 @@ sudo ./flash.sh --no-flash --no-systemimg jetson-orin-nano-devkit-super nvme0n1p
    - L4T 패키지(`nvidia-l4t-*`)는 BSP 버전(36.5.0)으로 고정합니다. 커널과 부트로더는 BSP에서 오므로 L4T 패키지만 올리면 서로 어긋납니다.
    - 이미지의 L4T 버전이 목록과 다르면 멈춥니다.
    - 고정 설정은 보드의 `/etc/apt/preferences.d/jetpack-6.2.2.pref`에 남습니다. 보드에서 `apt upgrade`를 해도 이 버전에 머뭅니다. 새 JetPack으로 올리려면 이 파일을 지웁니다.
-6. 언어(`en_US.UTF-8`), 키보드(US), 시간대를 설정합니다.
-7. USB 원격용 `usb-role` 명령과 부팅 서비스를 넣습니다(기본 켜짐).
-8. NVIDIA의 `l4t_create_default_user.sh`로 기본 사용자를 만들고 자동 로그인을 켭니다. 첫 부팅 초기 설정 화면(oem-config)이 나오지 않습니다.
+6. 같은 chroot 안에서 `jetson-install-dev.sh`로 개발 패키지(`nvidia-jetpack-dev`, `build-essential`, `cmake`, `pkg-config`)를 설치합니다. 버전은 5번의 고정 설정을 따릅니다.
+7. 언어(`en_US.UTF-8`), 키보드(US), 시간대를 설정합니다.
+8. USB 원격용 `usb-role` 명령과 부팅 서비스를 넣습니다(기본 켜짐).
+9. NVIDIA의 `l4t_create_default_user.sh`로 기본 사용자를 만들고 자동 로그인을 켭니다. 첫 부팅 초기 설정 화면(oem-config)이 나오지 않습니다.
    - 같은 이름의 사용자가 이미 있으면(다시 실행할 때) 사용자는 그대로 두고 초기 설정 화면만 다시 끕니다. `apply_binaries.sh`가 실행될 때마다 초기 설정 화면을 다시 켜기 때문입니다.
    - 이미지를 만들기 전에 초기 설정 화면이 꺼져 있는지 확인하고, 켜져 있으면 멈춥니다.
-9. `l4t_initrd_flash.sh --no-flash`로 NVMe 설치용 이미지를 만듭니다.
-10. `system.img`가 생겼는지 확인합니다.
+10. `l4t_initrd_flash.sh --no-flash`로 NVMe 설치용 이미지를 만듭니다.
+11. `system.img`가 생겼는지 확인합니다.
 
 ## 문제 해결
 
@@ -257,6 +283,7 @@ sudo ./flash.sh --no-flash --no-systemimg jetson-orin-nano-devkit-super nvme0n1p
 ## 상태
 
 - Ubuntu 22.04 PC에서 확인했습니다(2026-11-04): 보드 없이 생성 → 플래시 → 초기 설정 화면 없이 부팅·자동 로그인 → USB 원격(`192.168.55.1`) 접속 → JetPack 6.2.2 런타임(CUDA, TensorRT, cuDNN, VPI, OpenCV, GStreamer, NvBufSurface) 실행.
+- 개발 패키지 설치(`jetson-install-dev.sh`)는 2026-11-05에 추가했고, 이 스크립트로는 아직 이미지를 생성해 보지 않았습니다. 이미지가 약 5GB 커집니다.
 - `--with-board` 생성은 끝까지 실행해 보지 않았습니다. 보드 식별값은 같은 방법(`flash.sh --no-flash`)으로 읽어 확인했습니다.
 - 가상 머신(VirtualBox, VMware)에서는 아직 시험하지 않았습니다.
 - 보드 식별값은 모두 확인했습니다(REC 모드에서 읽은 값과 일치).

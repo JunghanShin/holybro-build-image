@@ -1,7 +1,8 @@
 #!/bin/bash
 # Build a Holybro Pixhawk Jetson baseboard image for Jetson Orin NX.
 # JetPack 6.2.2 (L4T 36.5.0) uses the target name jetson-orin-nano-devkit-super.
-# The image also gets the JetPack 6.2.2 runtime (versions from jetpack-6.2.2.list),
+# The image also gets the JetPack 6.2.2 runtime and development packages (versions from
+# jetpack-6.2.2.list, the same set as the jetson-dev-env sysroot; see jetson-install-dev.sh),
 # a default user, English locale and keyboard, so the board is usable right after flashing.
 #
 # This script only generates images. It never writes the board, and by default it
@@ -33,6 +34,7 @@ PATCH_TBZ="holybro_jp622.tbz2"
 # version is pinned. The list is the same file jetson-dev-env builds its sysroot from.
 JETPACK_VERSION="6.2.2+b24"
 PIN_LIST="${SCRIPT_DIR}/jetpack-6.2.2.list"
+DEV_SCRIPT="${SCRIPT_DIR}/jetson-install-dev.sh"
 
 # Default user and system settings written into the image.
 JETSON_USER="${JETSON_USER:-dev}"
@@ -91,10 +93,12 @@ if [[ "$with_board" -eq 0 && ( -z "$CHIP_SKU" || -z "$RAMCODE_ID" ) ]]; then
 	exit 1
 fi
 
-if [[ ! -f "$PIN_LIST" ]]; then
-	echo "Missing ${PIN_LIST}. Keep it next to this script." >&2
-	exit 1
-fi
+for f in "$PIN_LIST" "$DEV_SCRIPT"; do
+	if [[ ! -f "$f" ]]; then
+		echo "Missing ${f}. Keep it next to this script." >&2
+		exit 1
+	fi
+done
 
 if [[ "$(id -u)" -ne 0 ]]; then
 	exec sudo WORK_DIR="$WORK_DIR" BOARDID="$BOARDID" FAB="$FAB" BOARDSKU="$BOARDSKU" \
@@ -208,8 +212,16 @@ install_jetpack_runtime() {
 	in_rootfs apt-get update
 	in_rootfs apt-get install -y "nvidia-jetpack-runtime=${JETPACK_VERSION}"
 	in_rootfs apt-get clean
-	rm -rf "${ROOTFS}/var/lib/apt/lists/"*
 	echo "Installed nvidia-jetpack-runtime $(in_rootfs dpkg-query -W -f '${Version}' nvidia-jetpack-runtime)"
+}
+
+# Development packages, the same set as the jetson-dev-env sysroot, through the script
+# that is also run by hand on boards flashed earlier.
+install_jetpack_dev() {
+	cp "$DEV_SCRIPT" "${ROOTFS}/tmp/jetson-install-dev.sh"
+	in_rootfs JETPACK_VERSION="$JETPACK_VERSION" bash /tmp/jetson-install-dev.sh
+	rm -f "${ROOTFS}/tmp/jetson-install-dev.sh"
+	rm -rf "${ROOTFS}/var/lib/apt/lists/"*
 }
 
 configure_system() {
@@ -366,6 +378,7 @@ tar xf "${WORK_DIR}/${PATCH_TBZ}"
 trap leave_rootfs EXIT
 enter_rootfs
 install_jetpack_runtime
+install_jetpack_dev
 configure_system
 install_usb_role
 leave_rootfs
