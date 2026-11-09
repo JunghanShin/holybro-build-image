@@ -1,6 +1,6 @@
 #!/bin/bash
 # Install the JetPack 6.2.2 development packages on a Jetson made with holybro-build-image.sh,
-# so the board has the same libraries and headers as the jetson-dev-env sysroot
+# so the board has the same libraries and headers as the holybro-dev-env sysroot
 # (nvidia-jetpack-dev: CUDA compiler nvcc and headers, OpenCV 4.8, TensorRT, cuDNN, VPI)
 # plus native build tools (gcc, g++, make, cmake, pkg-config).
 #

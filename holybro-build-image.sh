@@ -2,7 +2,7 @@
 # Build a Holybro Pixhawk Jetson baseboard image for Jetson Orin NX.
 # JetPack 6.2.2 (L4T 36.5.0) uses the target name jetson-orin-nano-devkit-super.
 # The image also gets the JetPack 6.2.2 runtime and development packages (versions from
-# jetpack-6.2.2.list, the same set as the jetson-dev-env sysroot; see jetson-install-dev.sh),
+# jetpack-6.2.2.list, the same set as the holybro-dev-env sysroot; see jetson-install-dev.sh),
 # a default user, English locale and keyboard, so the board is usable right after flashing.
 #
 # This script only generates images. It never writes the board, and by default it
@@ -31,7 +31,7 @@ ROOTFS_TBZ="Tegra_Linux_Sample-Root-Filesystem_r36.5.0_aarch64.tbz2"
 PATCH_TBZ="holybro_jp622.tbz2"
 
 # JetPack runtime. The NVIDIA r36.5 repository also has 6.2.3 (L4T 36.5.2), so every
-# version is pinned. The list is the same file jetson-dev-env builds its sysroot from.
+# version is pinned. The list is the same file holybro-dev-env builds its sysroot from.
 JETPACK_VERSION="6.2.2+b24"
 PIN_LIST="${SCRIPT_DIR}/jetpack-6.2.2.list"
 DEV_SCRIPT="${SCRIPT_DIR}/jetson-install-dev.sh"
@@ -215,7 +215,7 @@ install_jetpack_runtime() {
 	echo "Installed nvidia-jetpack-runtime $(in_rootfs dpkg-query -W -f '${Version}' nvidia-jetpack-runtime)"
 }
 
-# Development packages, the same set as the jetson-dev-env sysroot, through the script
+# Development packages, the same set as the holybro-dev-env sysroot, through the script
 # that is also run by hand on boards flashed earlier.
 install_jetpack_dev() {
 	cp "$DEV_SCRIPT" "${ROOTFS}/tmp/jetson-install-dev.sh"

@@ -2,7 +2,7 @@
 
 Holybro Pixhawk Jetson Baseboard에 Jetson Orin NX를 설치할 **플래시 이미지를 만드는** 스크립트입니다. 보드에 쓰지는 않습니다. 쓰기는 [holybro-flash-image](https://github.com/JunghanShin/holybro-flash-image)가 합니다.
 
-이미지에는 **JetPack 6.2.2 런타임과 개발 패키지**(CUDA·nvcc, TensorRT, cuDNN, VPI, OpenCV 4.8 헤더 포함, gcc·cmake)와 **기본 사용자 계정**이 들어 있어, 플래시하고 전원만 켜면 바로 SSH로 접속해 쓸 수 있습니다. 패키지 구성과 버전은 크로스 컴파일 환경 [jetson-dev-env](https://github.com/JunghanShin/jetson-dev-env)와 같은 목록(`jetpack-6.2.2.list`)으로 고정되어, PC에서 빌드한 프로그램이 그대로 실행되고 보드에서 직접 빌드해도 같은 라이브러리를 씁니다.
+이미지에는 **JetPack 6.2.2 런타임과 개발 패키지**(CUDA·nvcc, TensorRT, cuDNN, VPI, OpenCV 4.8 헤더 포함, gcc·cmake)와 **기본 사용자 계정**이 들어 있어, 플래시하고 전원만 켜면 바로 SSH로 접속해 쓸 수 있습니다. 패키지 구성과 버전은 크로스 컴파일 환경 [holybro-dev-env](https://github.com/JunghanShin/holybro-dev-env)와 같은 목록(`jetpack-6.2.2.list`)으로 고정되어, PC에서 빌드한 프로그램이 그대로 실행되고 보드에서 직접 빌드해도 같은 라이브러리를 씁니다.
 
 생성과 쓰기를 나눈 이유는 USB 연결 시간입니다. 한 번에 생성하고 쓰면 보드를 USB로 연결한 채 오래 기다려야 하고, 그동안 USB write 에러가 납니다. 이 스크립트는 **보드 없이** 이미지를 만들고, 보드는 마지막 쓰기 단계에서만 연결합니다.
 
@@ -23,6 +23,8 @@ holybro-flash-image.sh   (보드 REC 모드, USB 연결)
 | 소프트웨어 | JetPack 6.2.2 (L4T 36.5.0), Ubuntu 22.04. Holybro 패치(`holybro_jp622`)가 지원하는 버전 |
 | L4T 대상 이름 | `jetson-orin-nano-devkit-super` (Orin NX도 이 이름 사용) |
 | 설치 위치 | NVMe SSD (`nvme0n1p1`), 부트로더는 QSPI |
+
+Seeed A603 보드는 [a603-build-image](https://github.com/JunghanShin/a603-build-image)(JetPack 6.2)를 씁니다. 보드마다 지원하는 JetPack이 달라 저장소를 나눴습니다.
 
 ## 준비
 
@@ -134,7 +136,7 @@ git clone https://github.com/JunghanShin/holybro-flash-image.git
 
 ### 개발 패키지 (`jetson-install-dev.sh`)
 
-보드에서 작은 프로그램을 직접 빌드하거나 고칠 수 있도록 jetson-dev-env와 같은 개발 패키지를 넣습니다.
+보드에서 작은 프로그램을 직접 빌드하거나 고칠 수 있도록 holybro-dev-env와 같은 개발 패키지를 넣습니다.
 
 | 들어가는 것 | 내용 |
 |---|---|
@@ -278,7 +280,7 @@ sudo ./flash.sh --no-flash --no-systemimg jetson-orin-nano-devkit-super nvme0n1p
 
 1. 스크립트의 `BSP_URL`, `ROOTFS_URL`, `PATCH_URL`(새 JetPack용 Holybro 패치)
 2. 스크립트의 `JETPACK_VERSION`, `PIN_LIST`
-3. 새 버전 목록 파일. jetson-dev-env의 `docker/jetpack-*.list`와 **같은 파일**이어야 합니다. 두 저장소가 서로 의존하지 않도록 복사해 둡니다.
+3. 새 버전 목록 파일. holybro-dev-env의 `docker/jetpack-*.list`와 **같은 파일**이어야 합니다. 두 저장소가 서로 의존하지 않도록 복사해 둡니다.
 
 ## 상태
 
