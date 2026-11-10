@@ -26,6 +26,94 @@ holybro-flash-image.sh   (보드 REC 모드, USB 연결)
 
 Seeed A603 보드는 [a603-build-image](https://github.com/JunghanShin/a603-build-image)(JetPack 6.2)를 씁니다. 보드마다 지원하는 JetPack이 달라 저장소를 나눴습니다.
 
+## 빠른 시작 (처음부터 첫 부팅까지)
+
+이 순서대로 따라 하면 됩니다. 모든 명령은 **Ubuntu 22.04 터미널**(실제 PC 또는 VMware·VirtualBox 가상 머신)에서 실행합니다. 작업 폴더는 `~/holybro-work`입니다. 각 단계의 자세한 설명은 아래 절과 [holybro-flash-image](https://github.com/JunghanShin/holybro-flash-image) README에 있습니다.
+
+### 0. 준비 (처음 한 번)
+
+```bash
+sudo apt update
+```
+```bash
+sudo apt install -y git
+```
+```bash
+mkdir -p ~/holybro-work
+```
+```bash
+cd ~ && git clone https://github.com/JunghanShin/holybro-build-image.git
+```
+```bash
+cd ~ && git clone https://github.com/JunghanShin/holybro-flash-image.git
+```
+
+가상 머신이면 NVIDIA USB 장치가 가상 머신으로 자동 연결되게 미리 설정합니다([가상 머신](#가상-머신-virtualbox-vmware) 절).
+
+### 1. 이미지 생성 (보드 연결 안 함, 1~2시간 이상)
+
+NVIDIA BSP, 루트 파일 시스템, Holybro 패치, JetPack 패키지는 모두 스크립트가 받습니다.
+
+```bash
+cd ~ && ./holybro-build-image/holybro-build-image.sh -w ~/holybro-work
+```
+
+- 중간에 `sudo` 비밀번호를 묻습니다.
+- 끝나면 이 파일이 있어야 합니다.
+  ```bash
+  ls -lh ~/holybro-work/Linux_for_Tegra/tools/kernel_flash/images/external/system.img
+  ```
+
+### 2. 보드를 리커버리 모드로
+
+1. 보드 전원을 빼고, **NVMe SSD가 M.2 슬롯에 꽂혀 있는지** 확인합니다(전원을 켠 뒤 꽂으면 인식 안 됨).
+2. 캐리어 보드의 **REC 스위치를 켭니다**.
+3. PC와 보드의 **USB-C**를 데이터 케이블로 연결하고 전원을 넣습니다.
+4. 가상 머신이면 VMware 메뉴 **VM → Removable Devices → NVIDIA APX → Connect**로 장치를 넘깁니다.
+5. 복구 장치가 **480M**으로 잡혔는지 확인합니다. Orin NX 16GB는 `0955:7323`, 8GB는 `0955:7423`입니다.
+   ```bash
+   lsusb | grep 0955
+   ```
+   ```bash
+   lsusb -t
+   ```
+
+### 3. 보드에 쓰기 (10~20분)
+
+```bash
+cd ~ && ./holybro-flash-image/holybro-flash-image.sh -w ~/holybro-work
+```
+
+- 다른 시스템이 들어 있던 SSD라면 `--erase`를 붙입니다.
+- 쓰는 도중 보드가 다시 부팅하며 USB 장치가 새로 잡힙니다. 연결 대상을 물으면 **가상 머신**을 고릅니다.
+- `Flash finished`가 나오면 성공입니다.
+
+### 4. 첫 부팅과 확인
+
+1. 전원을 빼고 **REC 스위치를 원래 위치로** 돌린 뒤 전원을 넣습니다.
+2. USB-C 케이블을 그대로 두고 1분쯤 기다린 뒤 접속합니다(이더넷이면 DHCP로 받은 IP). 비밀번호는 `roqkf`입니다.
+   ```bash
+   ssh dev@192.168.55.1
+   ```
+3. 보드에서 확인합니다. JetPack 두 패키지 모두 `6.2.2+b24`가 나와야 합니다.
+   ```bash
+   dpkg-query -W nvidia-jetpack-runtime nvidia-jetpack-dev
+   ```
+   ```bash
+   nvcc --version
+   ```
+
+### 막혔을 때 보여 줄 로그
+
+| 단계 | 로그 |
+|---|---|
+| 이미지 생성 | `~/holybro-work/build-image.log` |
+| 쓰기 | `~/holybro-work/flash-image.log`, `~/holybro-work/Linux_for_Tegra/initrdlog/` |
+
+```bash
+tail -n 50 ~/holybro-work/build-image.log
+```
+
 ## 준비
 
 | 항목 | 내용 |
